@@ -24,10 +24,6 @@ jobs:
       - name: Grant Execute Permission to Gradle Wrapper
         run: chmod +x gradlew
 
-      # --- CONFIGURE THE RUNNER BUILD RUNTIME ---
-      - name: Setup Gradle Environment
-        uses: gradle/actions/setup-gradle@v4
-
       # --- RECREATE THE KEYSTORE BINARY FROM BASE64 STRING ---
       - name: Decode Keystore File
         run: |
