@@ -24,6 +24,12 @@ jobs:
       - name: Grant Execute Permission to Gradle Wrapper
         run: chmod +x gradlew
 
+          # Installs and sets up a global gradle installation environment tool on the runner
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+
       # --- RECREATE THE KEYSTORE BINARY FROM BASE64 STRING ---
       - name: Decode Keystore File
         run: |
