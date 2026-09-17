@@ -24,48 +24,41 @@ android {
             envProperties.load(FileInputStream(envFile))
         }
 
-        buildTypes {
-            // Load the environment file manually
-            val envProperties = Properties()
-            val envFile = project.rootProject.file(".env")
-            if (envFile.exists()) {
-                envFile.inputStream().use { envProperties.load(it) }
-            }
-
-            val finalUrl = envProperties.getProperty("SUPABASE_URL")
-                ?: System.getenv("SUPABASE_URL")
-                ?: "https://placeholder-fallback.supabase.co"
-
-            val finalKey = envProperties.getProperty("SUPABASE_ANON_KEY")
-                ?: System.getenv("SUPABASE_ANON_KEY")
-                ?: "placeholder-key"
-
-            getByName("debug") {
-                // Force debug builds to see the upper-case variables
-                buildConfigField("String", "SUPABASE_URL", "\"$finalUrl\"")
-                buildConfigField("String", "SUPABASE_ANON_KEY", "\"$finalKey\"")
-            }
-
-            getByName("release") {
-                isMinifyEnabled = false
-                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-
-                // Force release builds to see the upper-case variables
-                buildConfigField("String", "SUPABASE_URL", "\"$finalUrl\"")
-                buildConfigField("String", "SUPABASE_ANON_KEY", "\"$finalKey\"")
-            }
-        }
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
-        release {
-            optimization {
-                enable = false
-            }
+        // Load the environment file manually
+        val envProperties = Properties()
+        val envFile = project.rootProject.file(".env")
+        if (envFile.exists()) {
+            envFile.inputStream().use { envProperties.load(it) }
+        }
+
+        val finalUrl = envProperties.getProperty("SUPABASE_URL")
+            ?: System.getenv("SUPABASE_URL")
+            ?: "https://placeholder-fallback.supabase.co"
+
+        val finalKey = envProperties.getProperty("SUPABASE_ANON_KEY")
+            ?: System.getenv("SUPABASE_ANON_KEY")
+            ?: "placeholder-key"
+
+        getByName("debug") {
+            // Force debug builds to see the upper-case variables
+            buildConfigField("String", "SUPABASE_URL", "\"$finalUrl\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"$finalKey\"")
+        }
+
+        getByName("release") {
+            isMinifyEnabled = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+            // Force release builds to see the upper-case variables
+            buildConfigField("String", "SUPABASE_URL", "\"$finalUrl\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"$finalKey\"")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
