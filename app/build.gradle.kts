@@ -9,9 +9,7 @@ plugins {
 
 android {
     namespace = "com.softlabs.clipbq"
-    compileSdk {
-        version = release(37)
-    }
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.softlabs.clipbq"
@@ -78,6 +76,10 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 }
 
