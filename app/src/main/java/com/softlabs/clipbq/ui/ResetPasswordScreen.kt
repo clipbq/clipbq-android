@@ -17,7 +17,7 @@ import com.softlabs.clipbq.viewmodel.ClipboardViewModel
 @Composable
 fun ResetPasswordScreen(
     viewModel: ClipboardViewModel,
-    accessToken: String?,
+    isLinkValidated: Boolean,
     onBackToLogin: () -> Unit) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
@@ -36,20 +36,34 @@ fun ResetPasswordScreen(
         }
     ) { paddingValues ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(24.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (accessToken == null) {
-                Text("Enter your email address to receive a secure recovery link.", style = MaterialTheme.typography.bodyLarge)
+            if (!isLinkValidated) {
+                Text(
+                    "Enter your email address to receive a secure recovery link.",
+                    style = MaterialTheme.typography.bodyLarge
+                )
                 Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email Address") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email Address") },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(24.dp))
+                val systemMessage by viewModel.systemMessage.collectAsState()
+                SystemMessageDisplay(message = systemMessage)
                 Button(
                     onClick = {
-                        viewModel.sendPasswordRecoveryLink(email,
-                            onSuccess = { Log.d("clipBQ-Sync", "Successfully sent recovery link!") },
-                            onError = { err -> Log.e("clipBQ-Sync", "Unable to send recovery link: ${err}", Exception(err)) }
+                        viewModel.sendPasswordRecoveryLink(
+                            email,
+                            onSuccess = {},
+                            onError = {}
                         )
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -57,25 +71,34 @@ fun ResetPasswordScreen(
                     Text("SEND RECOVERY LINK")
                 }
             } else {
-                Text("Recovery Link Validated! Enter your new password below.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    "Recovery link validated! Enter your new password below.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(value = newPassword, onValueChange = { newPassword = it }, label = { Text("New Secure Password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("New Secure Password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(24.dp))
+                val systemMessage by viewModel.systemMessage.collectAsState()
+                SystemMessageDisplay(message = systemMessage)
                 Button(
                     onClick = {
-                        viewModel.verifyTokenAndResetPassword(accessToken!!, newPassword,
-                            onSuccess = {
-                                Log.d("clipBQ-Sync", "Successfully updated password!")
-                                onBackToLogin()
-                            },
-                            onError = { err -> Log.e("clipBQ-Sync", "Unable to update password: ${err}", Exception(err)) }
-                        )
+                        viewModel.verifyTokenAndResetPassword(
+                            newPass = newPassword,
+                            onSuccess = {})
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("CONFIRM NEW PASSWORD")
                 }
             }
+
         }
     }
 }

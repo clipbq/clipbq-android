@@ -7,8 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.softlabs.clipbq.AuthScreen
-import com.softlabs.clipbq.ClipboardHistoryScreen
+import com.softlabs.clipbq.ui.AuthScreen
+import com.softlabs.clipbq.ui.ClipboardHistoryScreen
 import com.softlabs.clipbq.ui.ResetPasswordScreen
 import com.softlabs.clipbq.ui.SettingsScreen
 import com.softlabs.clipbq.viewmodel.ClipboardViewModel
@@ -26,25 +26,37 @@ fun ClipboardAppNavigation(
     var loggedInScreen by remember { mutableStateOf(AppScreen.HISTORY) }
     var loggedOutScreen by remember { mutableStateOf(AppScreen.AUTH) }
 
-    // Intercept deep link events natively
+    var isPerformingRecoveryByLink by remember { mutableStateOf(false) }
+
     LaunchedEffect(deeplinkToken, forcedScreen) {
         if (deeplinkToken != null && forcedScreen == AppScreen.RESET_PASSWORD) {
-            loggedOutScreen = AppScreen.RESET_PASSWORD
+            isPerformingRecoveryByLink = true
             onClearDeeplink()
         }
     }
 
-    if (!isAuth && loggedOutScreen == AppScreen.RESET_PASSWORD) {
+    if (isPerformingRecoveryByLink) {
         ResetPasswordScreen(
             viewModel = viewModel,
-            accessToken = deeplinkToken,
-            onBackToLogin = { loggedOutScreen = AppScreen.AUTH }
+            isLinkValidated = true,
+            onBackToLogin = {
+                isPerformingRecoveryByLink = false
+                loggedOutScreen = AppScreen.AUTH
+                loggedInScreen = AppScreen.HISTORY
+            }
         )
     } else if (!isAuth) {
-        AuthScreen(
-            viewModel = viewModel,
-            onNavigateToReset = { loggedOutScreen = AppScreen.RESET_PASSWORD }
-        )
+        when (loggedOutScreen) {
+            AppScreen.RESET_PASSWORD -> ResetPasswordScreen(
+                viewModel = viewModel,
+                isLinkValidated = false,
+                onBackToLogin = { loggedOutScreen = AppScreen.AUTH }
+            )
+            else -> AuthScreen(
+                viewModel = viewModel,
+                onNavigateToReset = { loggedOutScreen = AppScreen.RESET_PASSWORD }
+            )
+        }
     } else {
         LaunchedEffect(Unit) { loggedOutScreen = AppScreen.AUTH }
         when (loggedInScreen) {
