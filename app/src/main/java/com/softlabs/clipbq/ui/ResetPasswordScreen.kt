@@ -18,6 +18,7 @@ import com.softlabs.clipbq.viewmodel.ClipboardViewModel
 fun ResetPasswordScreen(
     viewModel: ClipboardViewModel,
     isLinkValidated: Boolean,
+    accessToken: String?,
     onBackToLogin: () -> Unit) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
@@ -90,8 +91,11 @@ fun ResetPasswordScreen(
                 Button(
                     onClick = {
                         viewModel.verifyTokenAndResetPassword(
+                            accessToken = accessToken!!,
                             newPass = newPassword,
-                            onSuccess = {})
+                            onSuccess = {
+                                onBackToLogin()
+                            })
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {

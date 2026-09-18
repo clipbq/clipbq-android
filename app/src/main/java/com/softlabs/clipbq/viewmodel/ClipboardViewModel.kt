@@ -231,9 +231,13 @@ class ClipboardViewModel : ViewModel() {
         }
     }
 
-    fun verifyTokenAndResetPassword(newPass: String, onSuccess: () -> Unit) {
+    fun verifyTokenAndResetPassword(accessToken: String, newPass: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             try {
+                client.auth.importAuthToken(
+                    accessToken = accessToken,
+                    retrieveUser = true
+                )
                 client.auth.updateUser {
                     password = newPass
                 }
