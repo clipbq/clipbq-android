@@ -1,6 +1,6 @@
 package com.softlabs.clipbq.ui
 
-import android.widget.Toast
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -38,11 +38,10 @@ fun SettingsScreen(viewModel: ClipboardViewModel, onBack: () -> Unit) {
         ) {
             Text(text = "Account Actions", style = MaterialTheme.typography.titleMedium)
 
-            // Standard Logout Execution Option
             Button(
                 onClick = {
                     viewModel.logout {
-                        Toast.makeText(context, "Logged out safely", Toast.LENGTH_SHORT).show()
+                        Log.d("clipBQ-Sync", "Successfully logged out safely")
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -55,7 +54,6 @@ fun SettingsScreen(viewModel: ClipboardViewModel, onBack: () -> Unit) {
 
             Text(text = "Danger Zone", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
 
-            // Hard delete profile activation button layout widget trigger
             Button(
                 onClick = { showDeleteConfirmation = true },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
@@ -66,7 +64,6 @@ fun SettingsScreen(viewModel: ClipboardViewModel, onBack: () -> Unit) {
         }
     }
 
-    // Modal Confirmation Dialog to safeguard against accidental clicks
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
@@ -77,8 +74,8 @@ fun SettingsScreen(viewModel: ClipboardViewModel, onBack: () -> Unit) {
                     onClick = {
                         showDeleteConfirmation = false
                         viewModel.deleteUserAccount(
-                            onComplete = { Toast.makeText(context, "Account destroyed.", Toast.LENGTH_LONG).show() },
-                            onError = { err -> Toast.makeText(context, err, Toast.LENGTH_LONG).show() }
+                            onComplete = { Log.d("clipBQ-Sync", "Successfully deleted user account and synced to cloud!") },
+                            onError = { err -> Log.e("clipBQ-Sync", "Unable to sync: ${err}", Exception(err)) }
                         )
                     }
                 ) {

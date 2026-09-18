@@ -1,7 +1,8 @@
 package com.softlabs.clipbq
 
+import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -30,49 +31,57 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.softlabs.clipbq.data.SupabaseClientProvider
-import com.softlabs.clipbq.ui.SettingsScreen
+import com.softlabs.clipbq.screen.AppScreen
+import com.softlabs.clipbq.screen.ClipboardAppNavigation
 
 
 class MainActivity : ComponentActivity() {
+    private var recoveryToken = mutableStateOf<String?>(null)
+    private var targetScreen = mutableStateOf<AppScreen?>(null)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SupabaseClientProvider.initialize(applicationContext)
+        handleDeepLinkIntent(intent)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    ClipboardAppNavigation()
+                    val viewModel: ClipboardViewModel = viewModel()
+                    ClipboardAppNavigation(viewModel,
+                        recoveryToken.value, targetScreen.value) {
+                        recoveryToken.value = null
+                        targetScreen.value = null
+                    }
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLinkIntent(intent)
+    }
+
+    private fun handleDeepLinkIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == "clipbq" && data.host == "reset-password") {
+            val fragment = data.fragment ?: ""
+            if (fragment.contains("access_token=")) {
+                val token = fragment.split("access_token=")[1].split("&")[0]
+                Log.d("clipBQ-Sync", "Received recovery token: $token")
+                recoveryToken.value = token
+                targetScreen.value = AppScreen.RESET_PASSWORD
             }
         }
     }
 }
 
-enum class AppScreen { AUTH, HISTORY, SETTINGS }
 @Composable
-fun ClipboardAppNavigation(viewModel: ClipboardViewModel = viewModel()) {
-    val isAuth by viewModel.isUserAuthenticated.collectAsState()
-    var currentScreen by remember { mutableStateOf(AppScreen.HISTORY) }
-
-    when (if (isAuth) currentScreen else AppScreen.AUTH) {
-        AppScreen.AUTH -> AuthScreen(viewModel)
-        AppScreen.HISTORY -> ClipboardHistoryScreen(
-            viewModel = viewModel,
-            onNavigateToSettings = { currentScreen = AppScreen.SETTINGS }
-        )
-        AppScreen.SETTINGS -> SettingsScreen(
-            viewModel = viewModel,
-            onBack = { currentScreen = AppScreen.HISTORY }
-        )
-    }
-}
-
-@Composable
-fun AuthScreen(viewModel: ClipboardViewModel) {
+fun AuthScreen(viewModel: ClipboardViewModel, onNavigateToReset: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isSignUp by remember { mutableStateOf(false) }
     val isLoading by viewModel.isLoading.collectAsState()
-    val context = LocalContext.current
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -86,16 +95,26 @@ fun AuthScreen(viewModel: ClipboardViewModel) {
         OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(24.dp))
 
+        if (!isSignUp) {
+
+            TextButton(
+                onClick = onNavigateToReset,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Forgot Password?")
+            }
+        }
         if (isLoading) {
             CircularProgressIndicator()
         } else {
             Button(
                 onClick = {
                     viewModel.handleAuthAction(email, password, isSignUp, onSuccess = {
-                        Toast.makeText(context, "Authentication successful!", Toast.LENGTH_SHORT).show()
+                        Log.d("clipBQ-Sync", "Successfully authenticated user to cloud!")
                     },
                         onError = { errorMessage ->
-                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            Log.e("clipBQ-Sync", "Unable to sync: ${errorMessage}",
+                                Exception(errorMessage))
                         })
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -125,21 +144,18 @@ fun ClipboardHistoryScreen(viewModel: ClipboardViewModel, onNavigateToSettings: 
 
     Scaffold(
         topBar = { TopAppBar(
-            title = { Text("📋 Clipboard Sync History") },
+            title = { Text("📋 clipBQ Cloud") },
             actions = {
-            // Refresh action icon button
             IconButton(onClick = { viewModel.refreshHistory() }) {
                 Icon(Icons.Default.Refresh, contentDescription = "Refresh List")
             }
-            // Delete all clipboard records action button
             IconButton(onClick = {
                 viewModel.deleteAllHistory {
-                    Toast.makeText(context, "History cleared!", Toast.LENGTH_SHORT).show()
+                    Log.d("clipBQ-Sync", "Successfully cleared history and synced to cloud!")
                 }
             }) {
                 Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All History", tint = MaterialTheme.colorScheme.error)
             }
-            // Navigation gear shortcut to settings panel view
             IconButton(onClick = onNavigateToSettings) {
                 Icon(Icons.Default.Settings, contentDescription = "Open Settings")
             }
