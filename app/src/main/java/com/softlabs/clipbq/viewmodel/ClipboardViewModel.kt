@@ -159,4 +159,52 @@ class ClipboardViewModel : ViewModel() {
         val clip = ClipData.newPlainText("Copied Text", text)
         clipboard.setPrimaryClip(clip)
     }
+
+    fun refreshHistory() {
+        fetchFullHistory()
+    }
+
+    fun deleteAllHistory(onComplete: () -> Unit) {
+        val currentUserId = client.auth.currentSessionOrNull()?.user?.id ?: return
+        viewModelScope.launch {
+            try {
+                client.postgrest["clipboard_history"].delete {
+                    filter { eq("user_id", currentUserId) }
+                }
+                fetchFullHistory()
+                onComplete()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun logout(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                client.auth.signOut()
+                _isUserAuthenticated.value = false
+                _clipboardHistory.value = emptyList()
+                onComplete()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun deleteUserAccount(onComplete: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val currentUserId = client.auth.currentSessionOrNull()?.user?.id
+                if (currentUserId != null) {
+                    client.postgrest["clipboard_history"].delete {
+                        filter { eq("user_id", currentUserId) }
+                    }
+                }
+                client.postgrest.rpc("delete_authenticated_user")
+                client.auth.signOut()
+                _isUserAuthenticated.value = false
+                _clipboardHistory.value = emptyList()
+                onComplete()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Could not complete account deletion.")
+            }
+        }
+    }
 }

@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.softlabs.clipbq.data.SupabaseClientProvider
+import com.softlabs.clipbq.ui.SettingsScreen
 
 
 class MainActivity : ComponentActivity() {
@@ -43,14 +47,22 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+enum class AppScreen { AUTH, HISTORY, SETTINGS }
 @Composable
 fun ClipboardAppNavigation(viewModel: ClipboardViewModel = viewModel()) {
     val isAuth by viewModel.isUserAuthenticated.collectAsState()
+    var currentScreen by remember { mutableStateOf(AppScreen.HISTORY) }
 
-    if (isAuth) {
-        ClipboardHistoryScreen(viewModel)
-    } else {
-        AuthScreen(viewModel)
+    when (if (isAuth) currentScreen else AppScreen.AUTH) {
+        AppScreen.AUTH -> AuthScreen(viewModel)
+        AppScreen.HISTORY -> ClipboardHistoryScreen(
+            viewModel = viewModel,
+            onNavigateToSettings = { currentScreen = AppScreen.SETTINGS }
+        )
+        AppScreen.SETTINGS -> SettingsScreen(
+            viewModel = viewModel,
+            onBack = { currentScreen = AppScreen.HISTORY }
+        )
     }
 }
 
@@ -99,7 +111,7 @@ fun AuthScreen(viewModel: ClipboardViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClipboardHistoryScreen(viewModel: ClipboardViewModel) {
+fun ClipboardHistoryScreen(viewModel: ClipboardViewModel, onNavigateToSettings: () -> Unit) {
     var searchQuery by remember { mutableStateOf("") }
     val items by viewModel.clipboardHistory.collectAsState()
     val context = LocalContext.current
@@ -112,7 +124,26 @@ fun ClipboardHistoryScreen(viewModel: ClipboardViewModel) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("📋 Clipboard History Sync") }) },
+        topBar = { TopAppBar(
+            title = { Text("📋 Clipboard Sync History") },
+            actions = {
+            // Refresh action icon button
+            IconButton(onClick = { viewModel.refreshHistory() }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh List")
+            }
+            // Delete all clipboard records action button
+            IconButton(onClick = {
+                viewModel.deleteAllHistory {
+                    Toast.makeText(context, "History cleared!", Toast.LENGTH_SHORT).show()
+                }
+            }) {
+                Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All History", tint = MaterialTheme.colorScheme.error)
+            }
+            // Navigation gear shortcut to settings panel view
+            IconButton(onClick = onNavigateToSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "Open Settings")
+            }
+        }) },
         floatingActionButton = {
             FloatingActionButton(onClick = {
                 viewModel.captureAndSyncLocalClipboard(context)
