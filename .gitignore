@@ -18,3 +18,4 @@ local.properties
 gradle/
 .idea/
 *.jks
+*.kotlin

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.softlabs.clipbq.data.ClipboardItem
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.providers.builtin.OTP
 
 
 import io.github.jan.supabase.postgrest.postgrest
@@ -94,11 +95,11 @@ class ClipboardViewModel : ViewModel() {
                     )
                     client.postgrest["clipboard_history"].insert(newItem)
                     fetchFullHistory()
-                    Log.d("clipBQ Sync", "Successfully synced new clip to cloud!")
+                    Log.d("clipBQ-Sync", "Successfully synced new clip to cloud!")
                 }
             } catch (e: Exception) {
                 // If the upload still fails, this log statement will reveal the exact cause
-                Log.e("ClipboardSync", "Unable to sync: ${e.localizedMessage}", e)
+                Log.e("clipBQ-Sync", "Unable to sync: ${e.localizedMessage}", e)
             }
         }
     }
@@ -158,5 +159,82 @@ class ClipboardViewModel : ViewModel() {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("Copied Text", text)
         clipboard.setPrimaryClip(clip)
+    }
+
+    fun refreshHistory() {
+        fetchFullHistory()
+    }
+
+    fun deleteAllHistory(onComplete: () -> Unit) {
+        val currentUserId = client.auth.currentSessionOrNull()?.user?.id ?: return
+        viewModelScope.launch {
+            try {
+                client.postgrest["clipboard_history"].delete {
+                    filter { eq("user_id", currentUserId) }
+                }
+                fetchFullHistory()
+                onComplete()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun logout(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                client.auth.signOut()
+                _isUserAuthenticated.value = false
+                _clipboardHistory.value = emptyList()
+                onComplete()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun deleteUserAccount(onComplete: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val currentUserId = client.auth.currentSessionOrNull()?.user?.id
+                if (currentUserId != null) {
+                    client.postgrest["clipboard_history"].delete {
+                        filter { eq("user_id", currentUserId) }
+                    }
+                }
+                client.postgrest.rpc("delete_authenticated_user")
+                client.auth.signOut()
+                _isUserAuthenticated.value = false
+                _clipboardHistory.value = emptyList()
+                onComplete()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Could not complete account deletion.")
+            }
+        }
+    }
+
+    fun sendPasswordRecoveryLink(email: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                client.auth.signUpWith(OTP) {
+                    this.email = email
+                    this.createUser = false
+                }
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Failed to transmit login link.")
+            }
+        }
+    }
+
+    fun verifyTokenAndResetPassword(accessToken: String, newPass: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                client.auth.retrieveUser(accessToken)
+                client.auth.updateUser {
+                    password = newPass
+                }
+                client.auth.signOut()
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Invalid verification link sequence.")
+            }
+        }
     }
 }
