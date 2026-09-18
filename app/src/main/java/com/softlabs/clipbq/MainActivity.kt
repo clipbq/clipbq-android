@@ -31,10 +31,9 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val viewModel: ClipboardViewModel = viewModel()
                     ClipboardAppNavigation(viewModel,
-                        recoveryToken.value, targetScreen.value) {
-                        recoveryToken.value = null
-                        targetScreen.value = null
-                    }
+                        recoveryToken.value, targetScreen.value, onClearDeeplink = {
+                            targetScreen.value = null
+                        })
                 }
             }
         }

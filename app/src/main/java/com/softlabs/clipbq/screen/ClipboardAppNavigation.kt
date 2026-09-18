@@ -35,10 +35,11 @@ fun ClipboardAppNavigation(
         }
     }
 
-    if (isPerformingRecoveryByLink) {
+    if (isPerformingRecoveryByLink && !deeplinkToken.isNullOrBlank()) {
         ResetPasswordScreen(
             viewModel = viewModel,
             isLinkValidated = true,
+            accessToken = deeplinkToken,
             onBackToLogin = {
                 isPerformingRecoveryByLink = false
                 loggedOutScreen = AppScreen.AUTH
@@ -49,6 +50,7 @@ fun ClipboardAppNavigation(
         when (loggedOutScreen) {
             AppScreen.RESET_PASSWORD -> ResetPasswordScreen(
                 viewModel = viewModel,
+                accessToken = null,
                 isLinkValidated = false,
                 onBackToLogin = { loggedOutScreen = AppScreen.AUTH }
             )
