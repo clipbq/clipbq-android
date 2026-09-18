@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.softlabs.clipbq.data.ClipboardItem
+import com.softlabs.clipbq.data.MessageType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.OTP
@@ -20,10 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 import com.softlabs.clipbq.data.SupabaseClientProvider
-import io.github.jan.supabase.realtime.PostgresAction
-import io.github.jan.supabase.realtime.channel
-import io.github.jan.supabase.realtime.postgresChangeFlow
-import io.github.jan.supabase.realtime.realtime
+import com.softlabs.clipbq.data.SystemMessage
+import kotlinx.coroutines.delay
 
 class ClipboardViewModel : ViewModel() {
     private val client = SupabaseClientProvider.client
@@ -37,36 +36,50 @@ class ClipboardViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    init {
-        if (_isUserAuthenticated.value) {
-            observeRealtimeDatabase()
+    private val _systemMessage = MutableStateFlow<SystemMessage?>(null)
+    val systemMessage: StateFlow<SystemMessage?> = _systemMessage.asStateFlow()
+
+    private val _masterHistory = MutableStateFlow<List<ClipboardItem>>(emptyList())
+    private var currentSearchQuery = ""
+
+    fun setSystemMessage(text: String, type: MessageType) {
+        val newMessage = SystemMessage(text, type)
+        _systemMessage.value = newMessage
+        viewModelScope.launch {
+            delay(5000) // Auto-clear after 5 seconds
+            if (_systemMessage.value == newMessage) _systemMessage.value = null
         }
     }
 
     fun handleAuthAction(email: String, pass: String, isSignUp: Boolean, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
+            _systemMessage.value = null
             try {
                 if (isSignUp) {
-                    // Fix for line 48: The modern unified Sign Up syntax
                     client.auth.signUpWith(Email) {
                         this.email = email
                         this.password = pass
                     }
-                    onError("Registration successful! You may log in.")
+                    setSystemMessage("Registration successful! Check your inbox for confirmation.",
+                        MessageType.SUCCESS)
                 } else {
-                    // The modern unified Sign In syntax
                     client.auth.signInWith(Email) {
                         this.email = email
                         this.password = pass
                     }
                     _isUserAuthenticated.value = true
-                    observeRealtimeDatabase()
+                    setSystemMessage("Login successful!", MessageType.SUCCESS)
                     onSuccess()
                 }
             } catch (e: Exception) {
+                if(e.localizedMessage!!.contains("Unable to resolve host")) {
+                    setSystemMessage("Please check your Internet connection and try again.",
+                        MessageType.INFO)
+                } else {
+                setSystemMessage(e.localizedMessage ?: "Authentication failure.", MessageType.ERROR)
                 onError(e.localizedMessage ?: "Authentication failure.")
-            } finally {
+            }} finally {
                 _isLoading.value = false
             }
         }
@@ -81,7 +94,6 @@ class ClipboardViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // Retrieve your user's trailing clip entry to prevent duplications
                 val history = client.postgrest["clipboard_history"].select {
                     filter { eq("user_id", currentUserId) }
                     order("created_at", Order.DESCENDING)
@@ -98,46 +110,18 @@ class ClipboardViewModel : ViewModel() {
                     Log.d("clipBQ-Sync", "Successfully synced new clip to cloud!")
                 }
             } catch (e: Exception) {
-                // If the upload still fails, this log statement will reveal the exact cause
                 Log.e("clipBQ-Sync", "Unable to sync: ${e.localizedMessage}", e)
             }
         }
     }
 
     fun searchClipboard(query: String) {
-        val currentUserId = client.auth.currentSessionOrNull()?.user?.id ?: return
-        if (query.isEmpty()) {
-            fetchFullHistory()
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val results = client.postgrest["clipboard_history"].select {
-                    filter {
-                        eq("user_id", currentUserId)
-                        ilike("content", "%$query%")
-                    }
-                    order("created_at", Order.DESCENDING)
-                }.decodeList<ClipboardItem>()
-                _clipboardHistory.value = results
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun observeRealtimeDatabase() {
-        val currentUserId = client.auth.currentSessionOrNull()?.user?.id ?: return
-        fetchFullHistory()
-
-        viewModelScope.launch {
-            val channel = client.realtime.channel("public:clipboard_history")
-            val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-                table = "clipboard_history"
-            }
-
-            channel.subscribe()
-
-            changeFlow.collect {
-                fetchFullHistory()
+        currentSearchQuery = query
+        if (query.isBlank()) {
+            _clipboardHistory.value = _masterHistory.value
+        } else {
+            _clipboardHistory.value = _masterHistory.value.filter { item ->
+                item.content.contains(query, ignoreCase = true)
             }
         }
     }
@@ -150,8 +134,14 @@ class ClipboardViewModel : ViewModel() {
                     filter { eq("user_id", currentUserId) }
                     order("created_at", Order.DESCENDING)
                 }.decodeList<ClipboardItem>()
-                _clipboardHistory.value = data
-            } catch (_: Exception) {}
+                _masterHistory.value = data
+                if (currentSearchQuery.isEmpty()) {
+                    _clipboardHistory.value = data
+                } else {
+                    searchClipboard(currentSearchQuery)
+                }
+                Log.d("clipBQ-Sync", "Successfully fetched full history!")
+            } catch (e: Exception) {Log.e("clipBQ-Sync", "Unable to sync: ${e.localizedMessage}")}
         }
     }
 
@@ -162,7 +152,9 @@ class ClipboardViewModel : ViewModel() {
     }
 
     fun refreshHistory() {
-        fetchFullHistory()
+        if (currentSearchQuery.isEmpty()) {
+            fetchFullHistory()
+        }
     }
 
     fun deleteAllHistory(onComplete: () -> Unit) {
@@ -173,8 +165,11 @@ class ClipboardViewModel : ViewModel() {
                     filter { eq("user_id", currentUserId) }
                 }
                 fetchFullHistory()
+                Log.d("clipBQ-Sync", "Successfully cleared history and synced to cloud!")
                 onComplete()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e("clipBQ-Sync", "Unable to sync: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -184,8 +179,11 @@ class ClipboardViewModel : ViewModel() {
                 client.auth.signOut()
                 _isUserAuthenticated.value = false
                 _clipboardHistory.value = emptyList()
+                Log.d("clipBQ-Sync", "Successfully logged out safely")
                 onComplete()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e("clipBQ-Sync", "Unable to log out safely: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -202,8 +200,10 @@ class ClipboardViewModel : ViewModel() {
                 client.auth.signOut()
                 _isUserAuthenticated.value = false
                 _clipboardHistory.value = emptyList()
+                Log.d("clipBQ-Sync", "Successfully deleted user account and synced to cloud!")
                 onComplete()
             } catch (e: Exception) {
+                Log.e("clipBQ-Sync", "Could not complete account deletion: ${e.localizedMessage}", e)
                 onError(e.localizedMessage ?: "Could not complete account deletion.")
             }
         }
@@ -216,24 +216,42 @@ class ClipboardViewModel : ViewModel() {
                     this.email = email
                     this.createUser = false
                 }
+                Log.d("clipBQ-Sync", "Successfully sent recovery link!")
+                setSystemMessage("Recovery link sent! Check your inbox.", MessageType.SUCCESS)
                 onSuccess()
             } catch (e: Exception) {
+                setSystemMessage(
+                    e.localizedMessage ?: "Failed to transmit login link.",
+                    MessageType.ERROR
+                )
+                Log.e("clipBQ-Sync", "Failed to transmit login link: ${e.localizedMessage}", e)
                 onError(e.localizedMessage ?: "Failed to transmit login link.")
             }
+
         }
     }
 
-    fun verifyTokenAndResetPassword(accessToken: String, newPass: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+    fun verifyTokenAndResetPassword(newPass: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             try {
-                client.auth.retrieveUser(accessToken)
                 client.auth.updateUser {
                     password = newPass
                 }
                 client.auth.signOut()
+                Log.d("clipBQ-Sync", "Successfully updated password!")
+                setSystemMessage("Password updated! Please log in with your new credentials.",
+                    MessageType.SUCCESS)
                 onSuccess()
             } catch (e: Exception) {
-                onError(e.localizedMessage ?: "Invalid verification link sequence.")
+                if(e.localizedMessage!!.contains("Unable to resolve host")) {
+                    setSystemMessage("Please check your Internet connection and try again.",
+                        MessageType.INFO)
+                } else {
+                    setSystemMessage(e.localizedMessage ?: "Invalid verification link sequence.",
+                        MessageType.ERROR)
+                    Log.e("clipBQ-Sync",
+                        "Invalid verification link sequence: ${e.localizedMessage}", e)
+                }
             }
         }
     }
