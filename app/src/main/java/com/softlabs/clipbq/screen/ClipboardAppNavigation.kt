@@ -28,24 +28,16 @@ fun ClipboardAppNavigation(
 
     var loggedInScreen by rememberSaveable { mutableStateOf(AppScreen.HISTORY) }
     var loggedOutScreen by rememberSaveable { mutableStateOf(AppScreen.AUTH) }
-
-    // Cache the recovery token locally when the deep link fires so MainActivity can safely clear its state
     var activeRecoveryToken by rememberSaveable { mutableStateOf<String?>(null) }
-
-    // State Hoisting references for stability
     val currentOnClearDeeplink by rememberUpdatedState(onClearDeeplink)
 
-    // Handle incoming deep link events cleanly
     LaunchedEffect(deeplinkToken, forcedScreen) {
         if (!deeplinkToken.isNullOrBlank() && forcedScreen == AppScreen.RESET_PASSWORD) {
             activeRecoveryToken = deeplinkToken
             currentOnClearDeeplink() // MainActivity can now clear safely without breaking this screen
         }
     }
-
-    // Single source of truth evaluation branch
     when {
-        // 1. Prioritize Deep Link Password Recovery Mode
         activeRecoveryToken != null -> {
             ResetPasswordScreen(
                 viewModel = viewModel,
@@ -58,7 +50,6 @@ fun ClipboardAppNavigation(
                 })
         }
 
-        // 2. Unauthenticated User View State Matrix
         !isAuth -> {
             when (loggedOutScreen) {
                 AppScreen.RESET_PASSWORD -> {
@@ -77,9 +68,7 @@ fun ClipboardAppNavigation(
             }
         }
 
-        // 3. Authenticated Main App Workspace
         else -> {
-            // Safe inline reset of loggedOut state when an authentication ticket validates
             SideEffect {
                 if (loggedOutScreen != AppScreen.AUTH) {
                     loggedOutScreen = AppScreen.AUTH
