@@ -9,5 +9,8 @@ data class ClipboardItem(
     @SerialName("user_id") val userId: String,
     @SerialName("content") val content: String,
     @SerialName("created_at") val createdAt: String? = null
-)
-
+) {
+    constructor(userId: String, content: String) : this(
+        id = null, userId = userId, content = content, createdAt = null
+    )
+}

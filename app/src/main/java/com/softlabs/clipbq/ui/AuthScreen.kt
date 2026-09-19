@@ -2,6 +2,7 @@ package com.softlabs.clipbq.ui
 
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,54 +28,104 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.softlabs.clipbq.viewmodel.ClipboardViewModel
 
+private const val TAG = "clipBQ-Sync"
+
 @Composable
-fun AuthScreen(viewModel: ClipboardViewModel, onNavigateToReset: () -> Unit) {
+fun AuthScreen(
+    viewModel: ClipboardViewModel, onNavigateToReset: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isSignUp by remember { mutableStateOf(false) }
+
     val isLoading by viewModel.isLoading.collectAsState()
+    val systemMessage by viewModel.systemMessage.collectAsState()
+
+    val currentOnNavigateToReset by rememberUpdatedState(onNavigateToReset)
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = if (isSignUp) "Create Account" else "Welcome Back", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(24.dp))
-        OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(12.dp))
-        OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(24.dp))
-        val systemMessage by viewModel.systemMessage.collectAsState()
-        SystemMessageDisplay(message = systemMessage)
-        if (!isSignUp) {
+        Text(
+            text = if (isSignUp) "Create Account" else "Welcome Back",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") },
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password") },
+            visualTransformation = PasswordVisualTransformation(),
+            enabled = !isLoading,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        if (!isSignUp) {
             TextButton(
-                onClick = onNavigateToReset,
+                onClick = currentOnNavigateToReset,
+                enabled = !isLoading,
                 modifier = Modifier.align(Alignment.End)
             ) {
                 Text("Forgot Password?")
             }
-        }
-        if (isLoading) {
-            CircularProgressIndicator()
         } else {
-            Button(
-                onClick = {
-                    viewModel.handleAuthAction(email, password, isSignUp, onSuccess = {
-                        Log.d("clipBQ-Sync", "Successfully authenticated user to cloud!")
-                    },
-                        onError = { errorMessage ->
-                            Log.e("clipBQ-Sync", "Unable to sync: ${errorMessage}",
-                                Exception(errorMessage))
-                        })
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (isSignUp) "REGISTER" else "LOG IN")
-            }
-            TextButton(onClick = { isSignUp = !isSignUp }) {
-                Text(if (isSignUp) "Already have an account? Sign In" else "Need an account? Sign Up")
+            Spacer(modifier = Modifier.height(48.dp))
+        }
+
+        SystemMessageDisplay(message = systemMessage)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(90.dp), contentAlignment = Alignment.Center
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator()
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(
+                        onClick = {
+                            viewModel.handleAuthAction(
+                                email = email,
+                                pass = password,
+                                isSignUp = isSignUp,
+                                onSuccess = {
+                                    Log.d(TAG, "Successfully authenticated user to cloud!")
+                                },
+                                onError = { errorMessage ->
+                                    Log.e(
+                                        TAG,
+                                        "Unable to sync: $errorMessage",
+                                        Exception(errorMessage)
+                                    )
+                                })
+                        }, modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isSignUp) "REGISTER" else "LOG IN")
+                    }
+
+                    TextButton(onClick = { isSignUp = !isSignUp }) {
+                        Text(if (isSignUp) "Already have an account? Sign In" else "Need an account? Sign Up")
+                    }
+                }
             }
         }
     }

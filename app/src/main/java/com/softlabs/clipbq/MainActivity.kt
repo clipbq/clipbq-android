@@ -1,36 +1,47 @@
 package com.softlabs.clipbq
 
-
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.softlabs.clipbq.data.SupabaseClientProvider
 import com.softlabs.clipbq.screen.AppScreen
 import com.softlabs.clipbq.screen.ClipboardAppNavigation
 import com.softlabs.clipbq.viewmodel.ClipboardViewModel
 
+private const val TAG = "clipBQ-Sync"
+
 class MainActivity : ComponentActivity() {
-    private var recoveryToken = mutableStateOf<String?>(null)
-    private var targetScreen = mutableStateOf<AppScreen?>(null)
+    private var recoveryToken by mutableStateOf<String?>(null)
+    private var targetScreen by mutableStateOf<AppScreen?>(null)
+    private val viewModel: ClipboardViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        SupabaseClientProvider.initialize(applicationContext)
+
+        SupabaseClientProvider.initialize()
+
         handleDeepLinkIntent(intent)
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    val viewModel: ClipboardViewModel = viewModel()
-                    ClipboardAppNavigation(viewModel,
-                        recoveryToken.value, targetScreen.value, onClearDeeplink = {
-                            targetScreen.value = null
+                    ClipboardAppNavigation(
+                        viewModel = viewModel,
+                        deeplinkToken = recoveryToken,
+                        forcedScreen = targetScreen,
+                        onClearDeeplink = {
+                            targetScreen = null
+                            recoveryToken = null
                         })
                 }
             }
@@ -45,13 +56,15 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDeepLinkIntent(intent: Intent?) {
         val data = intent?.data ?: return
+
         if (data.scheme == "clipbq" && data.host == "reset-password") {
-            val fragment = data.fragment ?: ""
+            val fragment = data.fragment.orEmpty()
             if (fragment.contains("access_token=")) {
                 val token = fragment.substringAfter("access_token=").substringBefore("&")
-                Log.d("clipBQ-Sync", "Received recovery token: $token")
-                recoveryToken.value = token
-                targetScreen.value = AppScreen.RESET_PASSWORD
+                Log.d(TAG, "Received recovery token structure safely.")
+
+                recoveryToken = token
+                targetScreen = AppScreen.RESET_PASSWORD
             }
         }
     }

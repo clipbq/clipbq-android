@@ -29,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,87 +39,132 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.softlabs.clipbq.viewmodel.ClipboardViewModel
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
+
+private const val TAG = "clipBQ-Sync"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClipboardHistoryScreen(viewModel: ClipboardViewModel, onNavigateToSettings: () -> Unit) {
+fun ClipboardHistoryScreen(
+    viewModel: ClipboardViewModel, onNavigateToSettings: () -> Unit
+) {
     var searchQuery by remember { mutableStateOf("") }
-    val items by viewModel.clipboardHistory.collectAsState()
+    val items by viewModel.clipboardHistory.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
 
-    LaunchedEffect(items.size) {
-        viewModel.refreshHistory()
+    LaunchedEffect(items) {
         if (items.isNotEmpty()) {
-            listState.animateScrollToItem(0)
+            val isNotAtTop =
+                listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
+            if (isNotAtTop) {
+                listState.animateScrollToItem(index = 0, scrollOffset = 0)
+            }
+        } else {
+            viewModel.refreshHistory()
         }
     }
 
-    Scaffold(
-        topBar = { TopAppBar(
-            title = { Text("📋 clipBQ Cloud") },
-            actions = {
-                IconButton(onClick = { viewModel.refreshHistory() }) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh List")
-                }
-                IconButton(onClick = {
-                    viewModel.deleteAllHistory {
-                        Log.d("clipBQ-Sync", "Successfully cleared history and synced to cloud!")
-                    }
-                }) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = "Clear All History", tint = MaterialTheme.colorScheme.error)
-                }
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(Icons.Default.Settings, contentDescription = "Open Settings")
-                }
-            }) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = {
-                viewModel.captureAndSyncLocalClipboard(context)
-            }) {
-                Icon(Icons.Default.CloudUpload, contentDescription = "Sync Current Clip")
-            }
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotEmpty()) {
+            delay(300.milliseconds)
         }
-    ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)
-            .pointerInput(Unit) {
-            detectTapGestures(onTap = {
-                focusManager.clearFocus()
-            })
+        viewModel.searchClipboard(searchQuery)
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(title = { Text("📋 clipBQ Cloud") }, actions = {
+            IconButton(onClick = { viewModel.refreshHistory() }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh List")
+            }
+            IconButton(onClick = {
+                viewModel.deleteAllHistory {
+                    Log.d(TAG, "Successfully cleared history!")
+                }
+            }) {
+                Icon(
+                    Icons.Default.DeleteSweep,
+                    contentDescription = "Clear All History",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
+            IconButton(onClick = onNavigateToSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "Open Settings")
+            }
+        })
+    }, floatingActionButton = {
+        FloatingActionButton(onClick = {
+            viewModel.captureAndSyncLocalClipboard(context)
         }) {
+            Icon(Icons.Default.CloudUpload, contentDescription = "Sync Current Clip")
+        }
+    }) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { focusManager.clearFocus() })
+                }) {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    viewModel.searchClipboard(it)
-                },
+                onValueChange = { searchQuery = it }, // Triggers the debounced LaunchedEffect
                 label = { Text("Search clipboard history...") },
-                modifier = Modifier.fillMaxWidth().padding(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
             )
 
             LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-                items(items) { item ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = item.content, style = MaterialTheme.typography.bodyLarge)
-                            }
-                            IconButton(onClick = {
-                                viewModel.writeToLocalClipboard(context, item.content)
-                            }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy Content", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
+                state = listState, modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp)
+            ) {
+
+                items(
+                    items = items, key = { item -> item.id!! }) { item ->
+                    ClipboardItemCard(
+                        content = item.content,
+                        modifier = Modifier.animateItem(),
+                        onCopyClicked = { viewModel.writeToLocalClipboard(context, item.content) })
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClipboardItemCard(
+    content: String, onCopyClicked: () -> Unit, modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = content, style = MaterialTheme.typography.bodyLarge)
+            }
+            IconButton(
+                onClick = onCopyClicked, modifier = Modifier.align(Alignment.Top)
+            ) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = "Copy Content",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
