@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import com.softlabs.clipbq.data.SupabaseClientProvider
 import com.softlabs.clipbq.data.SystemMessage
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 class ClipboardViewModel : ViewModel() {
     private val client = SupabaseClientProvider.client
@@ -46,7 +47,7 @@ class ClipboardViewModel : ViewModel() {
         val newMessage = SystemMessage(text, type)
         _systemMessage.value = newMessage
         viewModelScope.launch {
-            delay(5000) // Auto-clear after 5 seconds
+            delay(5000.milliseconds)
             if (_systemMessage.value == newMessage) _systemMessage.value = null
         }
     }

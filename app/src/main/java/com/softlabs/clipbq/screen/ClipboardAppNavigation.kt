@@ -5,7 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.softlabs.clipbq.ui.AuthScreen
 import com.softlabs.clipbq.ui.ClipboardHistoryScreen
@@ -23,10 +23,9 @@ fun ClipboardAppNavigation(
 ) {
     val isAuth by viewModel.isUserAuthenticated.collectAsState()
 
-    var loggedInScreen by remember { mutableStateOf(AppScreen.HISTORY) }
-    var loggedOutScreen by remember { mutableStateOf(AppScreen.AUTH) }
-
-    var isPerformingRecoveryByLink by remember { mutableStateOf(false) }
+    var loggedInScreen by rememberSaveable { mutableStateOf(AppScreen.HISTORY) }
+    var loggedOutScreen by rememberSaveable { mutableStateOf(AppScreen.AUTH) }
+    var isPerformingRecoveryByLink by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(deeplinkToken, forcedScreen) {
         if (deeplinkToken != null && forcedScreen == AppScreen.RESET_PASSWORD) {

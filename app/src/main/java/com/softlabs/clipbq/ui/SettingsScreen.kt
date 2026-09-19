@@ -3,11 +3,13 @@ package com.softlabs.clipbq.ui
 import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.softlabs.clipbq.viewmodel.ClipboardViewModel
 
@@ -23,7 +25,7 @@ fun SettingsScreen(viewModel: ClipboardViewModel, onBack: () -> Unit) {
                 title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -38,6 +40,17 @@ fun SettingsScreen(viewModel: ClipboardViewModel, onBack: () -> Unit) {
         ) {
             Text(text = "Account Actions", style = MaterialTheme.typography.titleMedium)
 
+            Text(
+                text = "When you log out of the app, you cannot access the clipboard history. " +
+                        "All previously synced history will be available when you log back in.",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp, horizontal = 4.dp)
+            )
+
             Button(
                 onClick = {
                     viewModel.logout {
@@ -50,9 +63,21 @@ fun SettingsScreen(viewModel: ClipboardViewModel, onBack: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Divider()
+            HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
 
             Text(text = "Danger Zone", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+
+            Text(
+                text = "When you delete your account permanently, you cannot access the clipboard history "
+                        + "on the app, and on all devices. This action is irreversible. " +
+                        "All saved history will be lost and cannot be recovered when you sign back up again.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp, horizontal = 4.dp)
+            )
 
             Button(
                 onClick = { showDeleteConfirmation = true },

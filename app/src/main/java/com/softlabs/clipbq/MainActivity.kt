@@ -16,8 +16,6 @@ import com.softlabs.clipbq.data.SupabaseClientProvider
 import com.softlabs.clipbq.screen.AppScreen
 import com.softlabs.clipbq.screen.ClipboardAppNavigation
 import com.softlabs.clipbq.viewmodel.ClipboardViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-
 
 class MainActivity : ComponentActivity() {
     private var recoveryToken = mutableStateOf<String?>(null)
@@ -58,5 +56,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-private fun <T> remember(calculation: () -> MutableStateFlow<T>): MutableStateFlow<T> = calculation()
