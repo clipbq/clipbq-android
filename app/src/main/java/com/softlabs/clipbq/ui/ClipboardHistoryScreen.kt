@@ -38,6 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.softlabs.clipbq.viewmodel.ClipboardViewModel
@@ -155,7 +160,47 @@ private fun ClipboardItemCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = content, style = MaterialTheme.typography.bodyLarge)
+                val linkColor = MaterialTheme.colorScheme.primary
+
+                val codePattern = remember {
+                    Regex("""(\b\w+\.\w+\([^)]*\))|(\b\w+\s*=\s*)|([{}])|(\bModifier\.\w+)""")
+                }
+                val strictWebPattern = remember {
+                    Regex("""(https?://[^\s<>]+)|(www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}[^\s<>]*)""")
+                }
+                val annotatedString = remember(content, linkColor) {
+                    buildAnnotatedString {
+                        append(content)
+                        strictWebPattern.findAll(content).forEach { matchResult ->
+                            val start = matchResult.range.first
+                            val end = matchResult.range.last + 1
+                            val url = matchResult.value
+
+                            val isCodeSnippet = codePattern.findAll(content).any { codeMatch ->
+                                val codeRange = codeMatch.range.first..codeMatch.range.last
+                                start in codeRange || (end - 1) in codeRange
+                            }
+
+                            if (!isCodeSnippet) {
+                                val fullUrl = if (url.startsWith("www.")) "https://$url" else url
+
+                                addLink(
+                                    url = LinkAnnotation.Url(
+                                        url = fullUrl, styles = TextLinkStyles(
+                                            style = SpanStyle(
+                                                color = linkColor,
+                                                textDecoration = TextDecoration.Underline
+                                            )
+                                        )
+                                    ), start = start, end = end
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = annotatedString, style = MaterialTheme.typography.bodyLarge
+                )
             }
             IconButton(
                 onClick = onCopyClicked, modifier = Modifier.align(Alignment.Top)
